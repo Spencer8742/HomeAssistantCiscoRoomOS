@@ -22,6 +22,7 @@ DESCRIPTIONS: tuple[ButtonEntityDescription, ...] = (
     ButtonEntityDescription(key="share_to_call", icon="mdi:monitor-share"),
     ButtonEntityDescription(key="stop_sharing", icon="mdi:monitor-off"),
     ButtonEntityDescription(key="join_next_meeting", icon="mdi:calendar-check"),
+    ButtonEntityDescription(key="refresh_meetings", icon="mdi:calendar-refresh"),
 )
 
 
@@ -77,3 +78,5 @@ class RoomOSButton(RoomOSEntity, ButtonEntity):
             if booking.get("id"):
                 params["BookingId"] = booking["id"]
             await client.async_command(["Dial"], params)
+        elif key == "refresh_meetings":
+            await self.coordinator.async_refresh_bookings()

@@ -45,7 +45,8 @@
       "share_local": { "name": "Share locally" },
       "share_to_call": { "name": "Share to call" },
       "stop_sharing": { "name": "Stop sharing" },
-      "join_next_meeting": { "name": "Join next meeting" }
+      "join_next_meeting": { "name": "Join next meeting" },
+      "refresh_meetings": { "name": "Refresh meetings" }
     },
     "switch": {
       "microphone_mute": { "name": "Microphone mute" },

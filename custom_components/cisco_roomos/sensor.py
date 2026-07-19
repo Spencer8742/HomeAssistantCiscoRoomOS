@@ -22,7 +22,6 @@ from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.event import async_track_time_interval
 
-from .api import RoomOSError, booking_sort_key, booking_summary
 from .const import (
     ATTR_CALL_ID,
     ATTR_CONNECTOR_ID,
@@ -247,17 +246,10 @@ class NextMeetingSensor(RoomOSEntity, SensorEntity):
                 self.hass, self._async_refresh_bookings, BOOKINGS_REFRESH_INTERVAL
             )
         )
-        await self._async_refresh_bookings()
+        await self.coordinator.async_refresh_bookings()
 
     async def _async_refresh_bookings(self, _now: Any = None) -> None:
-        try:
-            bookings = await self.coordinator.client.async_list_bookings(days=1, limit=10)
-        except RoomOSError:
-            _LOGGER.debug("Could not refresh Cisco RoomOS bookings", exc_info=True)
-            return
-        bookings.sort(key=booking_sort_key)
-        self.coordinator.next_booking = booking_summary(bookings[0]) if bookings else None
-        self.async_write_ha_state()
+        await self.coordinator.async_refresh_bookings()
 
     @property
     def native_value(self) -> str:
@@ -266,15 +258,32 @@ class NextMeetingSensor(RoomOSEntity, SensorEntity):
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
+        bookings = self.coordinator.bookings
         booking = self.coordinator.next_booking
-        if not booking:
-            return {}
-        return {
-            "booking_id": booking["id"],
-            "start_time": booking["start_time"],
-            "end_time": booking["end_time"],
-            "organizer": booking["organizer"],
+        # `meetings` lists every booking for the day so a card can show them all;
+        # the top-level keys mirror the next meeting for simple templates.
+        attrs: dict[str, Any] = {
+            "meeting_count": len(bookings),
+            "meetings": [
+                {
+                    "title": item["title"],
+                    "start_time": item["start_time"],
+                    "end_time": item["end_time"],
+                    "organizer": item["organizer"],
+                }
+                for item in bookings
+            ],
         }
+        if booking:
+            attrs.update(
+                {
+                    "booking_id": booking["id"],
+                    "start_time": booking["start_time"],
+                    "end_time": booking["end_time"],
+                    "organizer": booking["organizer"],
+                }
+            )
+        return attrs
 
 
 class UptimeSensor(RoomOSEntity, SensorEntity):

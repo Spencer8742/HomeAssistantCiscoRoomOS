@@ -88,6 +88,7 @@ without removing and re-adding the integration (yet); see
 | Button | Share to call | Start presenting the selected source to the room screen *and* the far end |
 | Button | Stop sharing | Stop any active presentation |
 | Button | Join next meeting | Dials into the next booked meeting's callback number (`xCommand Dial Number:`, with `BookingId`/`Protocol` attached when available) |
+| Button | Refresh meetings | Re-fetches the day's bookings on demand instead of waiting for the 5-minute poll |
 | Select | Share source | Picks which video input connector the two share buttons act on |
 | Switch | Microphone mute | Mute/unmute the device's microphones |
 | Switch | Speaker mute | Mute/unmute the device's speaker output |
@@ -98,7 +99,7 @@ without removing and re-adding the integration (yet); see
 | Sensor | Standby state | `Off`/`Standby`/`EnteringStandby`/`HalfWake` |
 | Sensor | People count | Detected occupant count (RoomAnalytics) |
 | Sensor | Ambient noise | Background noise level in dBA (RoomAnalytics) |
-| Sensor | Next meeting | Title of the next booking, refreshed every 5 minutes, with start/end time and organizer as attributes |
+| Sensor | Next meeting | Title of the next booking (refreshed every 5 minutes, or on demand via the Refresh meetings button). Attributes: the next meeting's start/end time and organizer, plus `meeting_count` and a `meetings` list of all of the day's bookings |
 | Sensor | Uptime | Seconds since last restart (diagnostic) |
 | Sensor | IP address | Primary IPv4 address (diagnostic) |
 | Sensor | Software version | Installed RoomOS version (diagnostic) |
