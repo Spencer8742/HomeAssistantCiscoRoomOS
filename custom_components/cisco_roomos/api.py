@@ -152,6 +152,9 @@ def booking_summary(booking: dict[str, Any]) -> dict[str, Any]:
         "organizer": organizer_name,
         "number": number,
         "protocol": protocol,
+        # A booking is only dialable if it carries a callback number; plain
+        # calendar blocks with no video meeting are still listed, just not joinable.
+        "joinable": number is not None,
     }
 
 
@@ -246,8 +249,13 @@ class RoomOSClient:
         """Read a single Status or Configuration value, e.g. ['Status','SystemUnit','Name']."""
         return await self._async_request("xGet", {"Path": path})
 
-    async def async_list_bookings(self, days: int = 1, limit: int = 10) -> list[dict[str, Any]]:
-        """Return the raw Booking entries from the device's calendar for the next `days`."""
+    async def async_list_bookings(self, days: int = 100, limit: int = 100) -> list[dict[str, Any]]:
+        """Return the raw Booking entries the device currently knows about.
+
+        `Days` is just an upper bound on the window; the device only returns the
+        bookings its calendar sync has actually populated, so a wide window pulls
+        everything it can find (joinable or not) rather than only today's.
+        """
         result = await self.async_command(["Bookings", "List"], {"Days": days, "Limit": limit})
         bookings = result.get("Booking", []) if isinstance(result, dict) else []
         return [booking for booking in bookings if isinstance(booking, dict)]

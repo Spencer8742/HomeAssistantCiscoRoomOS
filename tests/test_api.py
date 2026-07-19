@@ -100,6 +100,7 @@ def test_booking_summary_extracts_fields() -> None:
         "organizer": "Ada Lovelace",
         "number": "12345@example.com",
         "protocol": "Spark",
+        "joinable": True,
     }
 
 
@@ -110,12 +111,24 @@ def test_booking_summary_falls_back_to_email_and_defaults() -> None:
     assert summary["start_time"] is None
     assert summary["number"] is None
     assert summary["protocol"] is None
+    assert summary["joinable"] is False
 
 
 def test_booking_summary_missing_dial_info_yields_no_number() -> None:
     summary = booking_summary({"Id": "abc123", "DialInfo": {"Calls": {"Call": []}}})
     assert summary["number"] is None
     assert summary["protocol"] is None
+    assert summary["joinable"] is False
+
+
+def test_booking_summary_non_joinable_block_still_summarized() -> None:
+    # A plain calendar block with no video call is listed but not joinable.
+    summary = booking_summary(
+        {"Title": "Focus time", "Time": {"StartTime": "2026-07-19T13:00:00Z"}}
+    )
+    assert summary["title"] == "Focus time"
+    assert summary["start_time"] == "2026-07-19T13:00:00Z"
+    assert summary["joinable"] is False
 
 
 def test_booking_summary_single_call_as_dict() -> None:
