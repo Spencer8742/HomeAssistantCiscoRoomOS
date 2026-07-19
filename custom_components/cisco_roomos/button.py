@@ -5,6 +5,7 @@ from __future__ import annotations
 from homeassistant.components.button import ButtonEntity, ButtonEntityDescription
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DOMAIN
@@ -20,6 +21,7 @@ DESCRIPTIONS: tuple[ButtonEntityDescription, ...] = (
     ButtonEntityDescription(key="share_local", icon="mdi:monitor-share"),
     ButtonEntityDescription(key="share_to_call", icon="mdi:monitor-share"),
     ButtonEntityDescription(key="stop_sharing", icon="mdi:monitor-off"),
+    ButtonEntityDescription(key="join_next_meeting", icon="mdi:calendar-check"),
 )
 
 
@@ -65,3 +67,8 @@ class RoomOSButton(RoomOSEntity, ButtonEntity):
             )
         elif key == "stop_sharing":
             await client.async_command(["Presentation", "Stop"])
+        elif key == "join_next_meeting":
+            booking = self.coordinator.next_booking
+            if not booking or not booking.get("id"):
+                raise HomeAssistantError("No upcoming meeting to join")
+            await client.async_command(["Dial"], {"BookingId": booking["id"]})

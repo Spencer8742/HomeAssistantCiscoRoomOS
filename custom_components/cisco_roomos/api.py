@@ -79,6 +79,42 @@ def _merge_status_list(existing: Any, update: list[Any]) -> list[Any]:
     return sorted(by_id.values(), key=lambda item: item["id"])
 
 
+def _booking_time(booking: dict[str, Any]) -> dict[str, Any]:
+    time_info = booking.get("Time")
+    if isinstance(time_info, list):
+        time_info = time_info[0] if time_info else {}
+    return time_info if isinstance(time_info, dict) else {}
+
+
+def booking_sort_key(booking: dict[str, Any]) -> str:
+    """Sortable key for a Bookings/List entry: its start time, earliest first."""
+    return _booking_time(booking).get("StartTime") or ""
+
+
+def booking_summary(booking: dict[str, Any]) -> dict[str, Any]:
+    """Pull the fields the "next meeting" sensor needs out of a raw Booking entry.
+
+    Field availability (organizer name, callback numbers, ...) depends on which
+    calendar service (Webex, Exchange, Google) the device is paired with, so
+    everything here is best-effort with a fallback to None.
+    """
+    time_info = _booking_time(booking)
+    organizer = booking.get("Organizer")
+    organizer_name = None
+    if isinstance(organizer, dict):
+        organizer_name = (
+            " ".join(filter(None, [organizer.get("FirstName"), organizer.get("LastName")]))
+            or organizer.get("Email")
+        )
+    return {
+        "id": booking.get("Id"),
+        "title": booking.get("Title") or "Meeting",
+        "start_time": time_info.get("StartTime"),
+        "end_time": time_info.get("EndTime"),
+        "organizer": organizer_name,
+    }
+
+
 class RoomOSClient:
     """Persistent WebSocket connection to a Cisco RoomOS device's xAPI."""
 
@@ -98,6 +134,10 @@ class RoomOSClient:
 
         self.on_update: Callable[[dict[str, Any]], None] | None = None
         self.on_availability_change: Callable[[bool], None] | None = None
+        # Called with the raw nested dict under "Event" for each xEvent notification
+        # (e.g. UI extension button presses) - these are momentary, not stateful,
+        # so they're dispatched rather than merged into `status`.
+        self.on_event: Callable[[dict[str, Any]], None] | None = None
 
         self._ws: Any = None
         self._id_counter = itertools.count(1)
@@ -126,7 +166,7 @@ class RoomOSClient:
         self._closing = False
         await self._async_open_socket()
         self._reader_task = asyncio.create_task(self._async_reader())
-        await self._async_subscribe_status()
+        await self._async_subscribe_feedback()
         self._set_available(True)
         self._run_task = asyncio.create_task(self._async_run())
 
@@ -154,6 +194,12 @@ class RoomOSClient:
         """Read a single Status or Configuration value, e.g. ['Status','SystemUnit','Name']."""
         return await self._async_request("xGet", {"Path": path})
 
+    async def async_list_bookings(self, days: int = 1, limit: int = 10) -> list[dict[str, Any]]:
+        """Return the raw Booking entries from the device's calendar for the next `days`."""
+        result = await self.async_command(["Bookings", "List"], {"Days": days, "Limit": limit})
+        bookings = result.get("Booking", []) if isinstance(result, dict) else []
+        return [booking for booking in bookings if isinstance(booking, dict)]
+
     async def _async_open_socket(self) -> None:
         ssl_context = ssl.create_default_context()
         if not self._verify_ssl:
@@ -176,9 +222,15 @@ class RoomOSClient:
                 raise RoomOSAuthError("Invalid username or password") from err
             raise RoomOSConnectionError(str(err) or err.__class__.__name__) from err
 
-    async def _async_subscribe_status(self) -> None:
+    async def _async_subscribe_feedback(self) -> None:
+        # Two separate subscriptions: the whole Status tree (stateful, seeded with
+        # NotifyCurrentValue) and the whole Event tree (momentary notifications,
+        # e.g. UI extension button presses, dispatched via on_event instead).
         await self._async_request(
             "xFeedback/Subscribe", {"Query": ["Status"], "NotifyCurrentValue": True}
+        )
+        await self._async_request(
+            "xFeedback/Subscribe", {"Query": ["Event"], "NotifyCurrentValue": False}
         )
 
     async def _async_reader(self) -> None:
@@ -208,7 +260,7 @@ class RoomOSClient:
             try:
                 await self._async_open_socket()
                 self._reader_task = asyncio.create_task(self._async_reader())
-                await self._async_subscribe_status()
+                await self._async_subscribe_feedback()
             except RoomOSError as err:
                 _LOGGER.debug("Reconnect attempt to %s failed: %s", self._host, err)
                 continue
@@ -258,6 +310,9 @@ class RoomOSClient:
                     changed = True
             if changed and self.on_update:
                 self.on_update(self._status)
+            event = params.get("Event")
+            if isinstance(event, dict) and self.on_event:
+                self.on_event(event)
 
     async def _async_request(self, method: str, params: dict[str, Any]) -> Any:
         if self._ws is None:

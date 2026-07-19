@@ -40,10 +40,14 @@
       "hang_up": { "name": "Hang up" },
       "share_local": { "name": "Share locally" },
       "share_to_call": { "name": "Share to call" },
-      "stop_sharing": { "name": "Stop sharing" }
+      "stop_sharing": { "name": "Stop sharing" },
+      "join_next_meeting": { "name": "Join next meeting" }
     },
     "switch": {
-      "microphone_mute": { "name": "Microphone mute" }
+      "microphone_mute": { "name": "Microphone mute" },
+      "do_not_disturb": { "name": "Do not disturb" },
+      "speaker_mute": { "name": "Speaker mute" },
+      "selfview": { "name": "Selfview" }
     },
     "number": {
       "volume": { "name": "Volume" }
@@ -53,11 +57,19 @@
     },
     "sensor": {
       "call_status": { "name": "Call status" },
-      "standby_state": { "name": "Standby state" }
+      "standby_state": { "name": "Standby state" },
+      "people_count": { "name": "People count" },
+      "ambient_noise": { "name": "Ambient noise" },
+      "next_meeting": { "name": "Next meeting" },
+      "uptime": { "name": "Uptime" },
+      "ip_address": { "name": "IP address" },
+      "software_version": { "name": "Software version" },
+      "active_alerts": { "name": "Active alerts" }
     },
     "binary_sensor": {
       "in_call": { "name": "In call" },
-      "sharing_content": { "name": "Sharing content" }
+      "sharing_content": { "name": "Sharing content" },
+      "occupancy": { "name": "Occupancy" }
     }
   },
   "services": {

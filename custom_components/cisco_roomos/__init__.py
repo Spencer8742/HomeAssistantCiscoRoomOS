@@ -37,6 +37,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     coordinator = RoomOSCoordinator(hass, entry, client)
     client.on_update = coordinator.handle_client_update
     client.on_availability_change = coordinator.handle_availability_change
+    client.on_event = coordinator.handle_client_event
 
     try:
         await client.async_connect()
