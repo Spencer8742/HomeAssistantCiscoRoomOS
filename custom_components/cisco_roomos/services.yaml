@@ -1,0 +1,109 @@
+dial:
+  target:
+    entity:
+      integration: cisco_roomos
+      domain: sensor
+  fields:
+    number:
+      required: true
+      example: "12345@example.com"
+      selector:
+        text:
+    protocol:
+      required: false
+      selector:
+        select:
+          options:
+            - "Sip"
+            - "H320"
+            - "H323"
+            - "Spark"
+            - "Auto"
+
+hang_up:
+  target:
+    entity:
+      integration: cisco_roomos
+      domain: sensor
+  fields:
+    call_id:
+      required: false
+      selector:
+        number:
+          min: 1
+          mode: box
+
+answer:
+  target:
+    entity:
+      integration: cisco_roomos
+      domain: sensor
+  fields:
+    call_id:
+      required: false
+      selector:
+        number:
+          min: 1
+          mode: box
+
+reject:
+  target:
+    entity:
+      integration: cisco_roomos
+      domain: sensor
+  fields:
+    call_id:
+      required: false
+      selector:
+        number:
+          min: 1
+          mode: box
+
+send_dtmf:
+  target:
+    entity:
+      integration: cisco_roomos
+      domain: sensor
+  fields:
+    digits:
+      required: true
+      selector:
+        text:
+    call_id:
+      required: false
+      selector:
+        number:
+          min: 1
+          mode: box
+
+share_local:
+  target:
+    entity:
+      integration: cisco_roomos
+      domain: sensor
+  fields:
+    connector_id:
+      required: true
+      selector:
+        number:
+          min: 1
+          mode: box
+
+share_remote:
+  target:
+    entity:
+      integration: cisco_roomos
+      domain: sensor
+  fields:
+    connector_id:
+      required: true
+      selector:
+        number:
+          min: 1
+          mode: box
+
+share_stop:
+  target:
+    entity:
+      integration: cisco_roomos
+      domain: sensor
