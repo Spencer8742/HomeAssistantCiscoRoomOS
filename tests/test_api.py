@@ -118,6 +118,42 @@ def test_booking_summary_missing_dial_info_yields_no_number() -> None:
     assert summary["protocol"] is None
 
 
+def test_booking_summary_single_call_as_dict() -> None:
+    # Some xAPI serializations return a lone Call as a dict instead of a list.
+    summary = booking_summary(
+        {"DialInfo": {"Calls": {"Call": {"Number": "sip:room@example.com", "Protocol": "Sip"}}}}
+    )
+    assert summary["number"] == "sip:room@example.com"
+    assert summary["protocol"] == "Sip"
+
+
+def test_booking_summary_unwraps_value_leaves() -> None:
+    # Leaf values may arrive wrapped as {"Value": ...}.
+    summary = booking_summary(
+        {"DialInfo": {"Calls": {"Call": [{"Number": {"Value": "999"}, "Protocol": {"Value": "H323"}}]}}}
+    )
+    assert summary["number"] == "999"
+    assert summary["protocol"] == "H323"
+
+
+def test_booking_summary_skips_empty_leading_call() -> None:
+    # An empty first entry must not shadow a later dialable one.
+    summary = booking_summary(
+        {
+            "DialInfo": {
+                "Calls": {
+                    "Call": [
+                        {"Number": "   ", "Protocol": "Sip"},
+                        {"Number": "12345@example.com", "Protocol": "Spark"},
+                    ]
+                }
+            }
+        }
+    )
+    assert summary["number"] == "12345@example.com"
+    assert summary["protocol"] == "Spark"
+
+
 def test_resolve_device_name_prefers_custom_name() -> None:
     assert resolve_device_name("My Desk Pro", "192.168.1.50", "192.168.1.50") == "My Desk Pro"
 

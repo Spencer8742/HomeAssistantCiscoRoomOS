@@ -91,6 +91,43 @@ def booking_sort_key(booking: dict[str, Any]) -> str:
     return _booking_time(booking).get("StartTime") or ""
 
 
+def _leaf_value(value: Any) -> str | None:
+    """Return a clean string for an xAPI leaf, which may be a bare value or a
+    {"Value": ...} wrapper depending on the serialization. None if empty."""
+    if isinstance(value, dict):
+        value = value.get("Value")
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
+
+
+def _booking_dial_target(booking: dict[str, Any]) -> tuple[str | None, str | None]:
+    """First dialable (Number, Protocol) from a Booking's DialInfo.Calls.Call.
+
+    xCommand Dial requires Number - a BookingId alone isn't dialable - so this
+    digs the callback number out of the booking for the join button. The Call
+    node may arrive as a list of calls or, when there's exactly one, as a single
+    dict; leaf values may be bare or {"Value": ...}-wrapped. We scan for the
+    first call that actually has a number so an empty leading entry can't win.
+    """
+    dial_info = booking.get("DialInfo")
+    if not isinstance(dial_info, dict):
+        return None, None
+    calls = (dial_info.get("Calls") or {}).get("Call")
+    if isinstance(calls, dict):
+        calls = [calls]
+    elif not isinstance(calls, list):
+        return None, None
+    for call in calls:
+        if not isinstance(call, dict):
+            continue
+        number = _leaf_value(call.get("Number"))
+        if number:
+            return number, _leaf_value(call.get("Protocol"))
+    return None, None
+
+
 def booking_summary(booking: dict[str, Any]) -> dict[str, Any]:
     """Pull the fields the "next meeting" sensor needs out of a raw Booking entry.
 
@@ -106,19 +143,15 @@ def booking_summary(booking: dict[str, Any]) -> dict[str, Any]:
             " ".join(filter(None, [organizer.get("FirstName"), organizer.get("LastName")]))
             or organizer.get("Email")
         )
-    # xCommand Dial requires Number - BookingId alone isn't dialable - so pull
-    # the first callback number out of DialInfo.Calls.Call for the join button.
-    dial_info = booking.get("DialInfo") or {}
-    calls = (dial_info.get("Calls") or {}).get("Call") or []
-    first_call = calls[0] if isinstance(calls, list) and calls else {}
+    number, protocol = _booking_dial_target(booking)
     return {
         "id": booking.get("Id"),
         "title": booking.get("Title") or "Meeting",
         "start_time": time_info.get("StartTime"),
         "end_time": time_info.get("EndTime"),
         "organizer": organizer_name,
-        "number": first_call.get("Number") if isinstance(first_call, dict) else None,
-        "protocol": first_call.get("Protocol") if isinstance(first_call, dict) else None,
+        "number": number,
+        "protocol": protocol,
     }
 
 
