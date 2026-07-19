@@ -11,7 +11,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
-from .api import RoomOSClient
+from .api import RoomOSClient, resolve_device_name
 from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
@@ -52,13 +52,13 @@ class RoomOSCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         status = (self.data or {}).get("Status", {})
         system_unit = status.get("SystemUnit", {})
         software = system_unit.get("Software", {})
-        # A name the user set during setup always wins, even if the device
-        # itself reports something else (often blank, or just its own IP).
-        custom_name = self.entry.data.get(CONF_NAME)
+        name = resolve_device_name(
+            self.entry.data.get(CONF_NAME), system_unit.get("Name"), self.entry.title
+        )
         return DeviceInfo(
             identifiers={(DOMAIN, self.unique_id)},
             manufacturer="Cisco",
-            name=custom_name or system_unit.get("Name") or self.entry.title,
+            name=name,
             model=system_unit.get("ProductId"),
             sw_version=software.get("Version"),
             configuration_url=f"https://{self.entry.data['host']}",

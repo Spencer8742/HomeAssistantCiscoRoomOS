@@ -115,6 +115,18 @@ def booking_summary(booking: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def resolve_device_name(custom_name: str | None, reported_name: str | None, fallback: str) -> str:
+    """What to call the device: a user-chosen name always wins, even over what
+    the device itself reports, since devices that never had SystemUnit.Name
+    set otherwise report it blank or as their own host/IP. Falls through to
+    the device-reported name, then to `fallback` (typically the host/IP).
+    """
+    for candidate in (custom_name, reported_name):
+        if candidate and candidate.strip():
+            return candidate.strip()
+    return fallback
+
+
 class RoomOSClient:
     """Persistent WebSocket connection to a Cisco RoomOS device's xAPI."""
 
