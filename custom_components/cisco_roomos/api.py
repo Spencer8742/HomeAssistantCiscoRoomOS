@@ -106,13 +106,32 @@ def booking_summary(booking: dict[str, Any]) -> dict[str, Any]:
             " ".join(filter(None, [organizer.get("FirstName"), organizer.get("LastName")]))
             or organizer.get("Email")
         )
+    # xCommand Dial requires Number - BookingId alone isn't dialable - so pull
+    # the first callback number out of DialInfo.Calls.Call for the join button.
+    dial_info = booking.get("DialInfo") or {}
+    calls = (dial_info.get("Calls") or {}).get("Call") or []
+    first_call = calls[0] if isinstance(calls, list) and calls else {}
     return {
         "id": booking.get("Id"),
         "title": booking.get("Title") or "Meeting",
         "start_time": time_info.get("StartTime"),
         "end_time": time_info.get("EndTime"),
         "organizer": organizer_name,
+        "number": first_call.get("Number") if isinstance(first_call, dict) else None,
+        "protocol": first_call.get("Protocol") if isinstance(first_call, dict) else None,
     }
+
+
+def resolve_device_name(custom_name: str | None, reported_name: str | None, fallback: str) -> str:
+    """What to call the device: a user-chosen name always wins, even over what
+    the device itself reports, since devices that never had SystemUnit.Name
+    set otherwise report it blank or as their own host/IP. Falls through to
+    the device-reported name, then to `fallback` (typically the host/IP).
+    """
+    for candidate in (custom_name, reported_name):
+        if candidate and candidate.strip():
+            return candidate.strip()
+    return fallback
 
 
 class RoomOSClient:

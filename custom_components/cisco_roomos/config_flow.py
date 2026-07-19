@@ -19,7 +19,7 @@ from homeassistant.const import (
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResult
 
-from .api import RoomOSAuthError, RoomOSClient, RoomOSConnectionError, RoomOSError
+from .api import RoomOSAuthError, RoomOSClient, RoomOSConnectionError, RoomOSError, resolve_device_name
 from .const import DEFAULT_PORT, DEFAULT_VERIFY_SSL, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
@@ -66,8 +66,9 @@ async def _async_validate_and_identify(data: dict[str, Any]) -> tuple[str, str]:
         await client.async_disconnect()
 
     unique_id = str(serial) if serial else data[CONF_HOST]
-    custom_name = data.get(CONF_NAME, "").strip()
-    title = custom_name or (str(device_name) if device_name else "") or data[CONF_HOST]
+    title = resolve_device_name(
+        data.get(CONF_NAME), str(device_name) if device_name else None, data[CONF_HOST]
+    )
     return unique_id, title
 
 

@@ -69,6 +69,11 @@ class RoomOSButton(RoomOSEntity, ButtonEntity):
             await client.async_command(["Presentation", "Stop"])
         elif key == "join_next_meeting":
             booking = self.coordinator.next_booking
-            if not booking or not booking.get("id"):
+            if not booking or not booking.get("number"):
                 raise HomeAssistantError("No upcoming meeting to join")
-            await client.async_command(["Dial"], {"BookingId": booking["id"]})
+            params = {"Number": booking["number"]}
+            if booking.get("protocol"):
+                params["Protocol"] = booking["protocol"]
+            if booking.get("id"):
+                params["BookingId"] = booking["id"]
+            await client.async_command(["Dial"], params)

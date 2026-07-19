@@ -87,7 +87,7 @@ without removing and re-adding the integration (yet); see
 | Button | Share locally | Start presenting the selected source to the room screen only |
 | Button | Share to call | Start presenting the selected source to the room screen *and* the far end |
 | Button | Stop sharing | Stop any active presentation |
-| Button | Join next meeting | Dials into the next booked meeting (`xCommand Dial BookingId:`) |
+| Button | Join next meeting | Dials into the next booked meeting's callback number (`xCommand Dial Number:`, with `BookingId`/`Protocol` attached when available) |
 | Select | Share source | Picks which video input connector the two share buttons act on |
 | Switch | Microphone mute | Mute/unmute the device's microphones |
 | Switch | Speaker mute | Mute/unmute the device's speaker output |

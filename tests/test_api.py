@@ -20,6 +20,7 @@ _spec.loader.exec_module(_api)
 merge_status = _api.merge_status
 booking_sort_key = _api.booking_sort_key
 booking_summary = _api.booking_summary
+resolve_device_name = _api.resolve_device_name
 
 
 def test_merge_scalar_and_nested_dict() -> None:
@@ -86,6 +87,9 @@ def test_booking_summary_extracts_fields() -> None:
         "Title": "Weekly sync",
         "Time": {"StartTime": "2026-07-19T09:00:00Z", "EndTime": "2026-07-19T09:30:00Z"},
         "Organizer": {"FirstName": "Ada", "LastName": "Lovelace"},
+        "DialInfo": {
+            "Calls": {"Call": [{"Number": "12345@example.com", "Protocol": "Spark"}]}
+        },
     }
     summary = booking_summary(booking)
     assert summary == {
@@ -94,6 +98,8 @@ def test_booking_summary_extracts_fields() -> None:
         "start_time": "2026-07-19T09:00:00Z",
         "end_time": "2026-07-19T09:30:00Z",
         "organizer": "Ada Lovelace",
+        "number": "12345@example.com",
+        "protocol": "Spark",
     }
 
 
@@ -102,3 +108,37 @@ def test_booking_summary_falls_back_to_email_and_defaults() -> None:
     assert summary["title"] == "Meeting"
     assert summary["organizer"] == "ada@example.com"
     assert summary["start_time"] is None
+    assert summary["number"] is None
+    assert summary["protocol"] is None
+
+
+def test_booking_summary_missing_dial_info_yields_no_number() -> None:
+    summary = booking_summary({"Id": "abc123", "DialInfo": {"Calls": {"Call": []}}})
+    assert summary["number"] is None
+    assert summary["protocol"] is None
+
+
+def test_resolve_device_name_prefers_custom_name() -> None:
+    assert resolve_device_name("My Desk Pro", "192.168.1.50", "192.168.1.50") == "My Desk Pro"
+
+
+def test_resolve_device_name_custom_name_wins_even_over_reported_name() -> None:
+    # The whole point of resolve_device_name: a live device-reported value
+    # (e.g. after connecting) must never override a name the user chose.
+    assert resolve_device_name("My Desk Pro", "Some Other Name", "192.168.1.50") == "My Desk Pro"
+
+
+def test_resolve_device_name_falls_back_to_reported_name() -> None:
+    assert resolve_device_name(None, "Conference Room A", "192.168.1.50") == "Conference Room A"
+    assert resolve_device_name("", "Conference Room A", "192.168.1.50") == "Conference Room A"
+    assert resolve_device_name("   ", "Conference Room A", "192.168.1.50") == "Conference Room A"
+
+
+def test_resolve_device_name_falls_back_to_host_when_nothing_else_set() -> None:
+    assert resolve_device_name(None, None, "192.168.1.50") == "192.168.1.50"
+    assert resolve_device_name("", "", "192.168.1.50") == "192.168.1.50"
+    assert resolve_device_name(None, "  ", "192.168.1.50") == "192.168.1.50"
+
+
+def test_resolve_device_name_strips_whitespace() -> None:
+    assert resolve_device_name("  My Desk Pro  ", None, "192.168.1.50") == "My Desk Pro"
