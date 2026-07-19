@@ -8,8 +8,12 @@
           "host": "Host or IP address",
           "username": "Username",
           "password": "Password",
+          "name": "Name (optional)",
           "port": "Port",
           "verify_ssl": "Verify SSL certificate"
+        },
+        "data_description": {
+          "name": "Shown as the device name in Home Assistant. Leave blank to use the name the device reports, or the host/IP if it doesn't have one set."
         }
       },
       "reauth_confirm": {

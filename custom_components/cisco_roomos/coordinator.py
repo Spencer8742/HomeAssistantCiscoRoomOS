@@ -6,6 +6,7 @@ import logging
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import CONF_NAME
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
@@ -51,10 +52,13 @@ class RoomOSCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         status = (self.data or {}).get("Status", {})
         system_unit = status.get("SystemUnit", {})
         software = system_unit.get("Software", {})
+        # A name the user set during setup always wins, even if the device
+        # itself reports something else (often blank, or just its own IP).
+        custom_name = self.entry.data.get(CONF_NAME)
         return DeviceInfo(
             identifiers={(DOMAIN, self.unique_id)},
             manufacturer="Cisco",
-            name=system_unit.get("Name") or self.entry.title,
+            name=custom_name or system_unit.get("Name") or self.entry.title,
             model=system_unit.get("ProductId"),
             sw_version=software.get("Version"),
             configuration_url=f"https://{self.entry.data['host']}",
