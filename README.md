@@ -64,8 +64,16 @@ Copy `custom_components/cisco_roomos` into your Home Assistant
 ## Setup
 
 Settings → Devices & Services → Add Integration → **Cisco RoomOS**, then
-enter the device's host/IP, username, password, port (default `443`), and
-whether to verify its TLS certificate.
+enter the device's host/IP, username, password, an optional **name**, port
+(default `443`), and whether to verify its TLS certificate.
+
+The name field controls what shows up as the device name (and therefore the
+prefix on every entity) in Home Assistant. Leave it blank and the integration
+falls back to whatever name the device itself reports, and then to the
+host/IP if the device doesn't have one set — which is the "entities show up
+as the IP address" case setting a name avoids. It can't be changed later
+without removing and re-adding the integration (yet); see
+[Roadmap](#roadmap).
 
 ## Entities
 

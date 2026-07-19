@@ -8,7 +8,14 @@ from typing import Any
 import voluptuous as vol
 
 from homeassistant import config_entries
-from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_PORT, CONF_USERNAME, CONF_VERIFY_SSL
+from homeassistant.const import (
+    CONF_HOST,
+    CONF_NAME,
+    CONF_PASSWORD,
+    CONF_PORT,
+    CONF_USERNAME,
+    CONF_VERIFY_SSL,
+)
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResult
 
@@ -22,6 +29,7 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
         vol.Required(CONF_HOST): str,
         vol.Required(CONF_USERNAME): str,
         vol.Required(CONF_PASSWORD): str,
+        vol.Optional(CONF_NAME, default=""): str,
         vol.Optional(CONF_PORT, default=DEFAULT_PORT): int,
         vol.Optional(CONF_VERIFY_SSL, default=DEFAULT_VERIFY_SSL): bool,
     }
@@ -29,7 +37,12 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
 
 
 async def _async_validate_and_identify(data: dict[str, Any]) -> tuple[str, str]:
-    """Connect with the given data and return (unique_id, title). Raises RoomOSError on failure."""
+    """Connect with the given data and return (unique_id, title). Raises RoomOSError on failure.
+
+    A blank CONF_NAME means the user didn't set one: fall back to whatever the
+    device itself reports, and failing that, the host/IP - which is exactly
+    the "entities show up as the IP address" case the name field exists to avoid.
+    """
     client = RoomOSClient(
         host=data[CONF_HOST],
         username=data[CONF_USERNAME],
@@ -46,14 +59,15 @@ async def _async_validate_and_identify(data: dict[str, Any]) -> tuple[str, str]:
         except RoomOSError:
             serial = None
         try:
-            name = await client.async_get(["Status", "SystemUnit", "Name"])
+            device_name = await client.async_get(["Status", "SystemUnit", "Name"])
         except RoomOSError:
-            name = None
+            device_name = None
     finally:
         await client.async_disconnect()
 
     unique_id = str(serial) if serial else data[CONF_HOST]
-    title = str(name) if name else data[CONF_HOST]
+    custom_name = data.get(CONF_NAME, "").strip()
+    title = custom_name or (str(device_name) if device_name else "") or data[CONF_HOST]
     return unique_id, title
 
 
