@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from homeassistant.components.binary_sensor import BinarySensorEntity
+from homeassistant.components.binary_sensor import BinarySensorDeviceClass, BinarySensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -17,7 +17,13 @@ async def async_setup_entry(
 ) -> None:
     """Set up Cisco RoomOS binary sensor entities."""
     coordinator: RoomOSCoordinator = hass.data[DOMAIN][entry.entry_id]
-    async_add_entities([InCallBinarySensor(coordinator), SharingContentBinarySensor(coordinator)])
+    async_add_entities(
+        [
+            InCallBinarySensor(coordinator),
+            SharingContentBinarySensor(coordinator),
+            OccupancyBinarySensor(coordinator),
+        ]
+    )
 
 
 class InCallBinarySensor(RoomOSEntity, BinarySensorEntity):
@@ -50,3 +56,25 @@ class SharingContentBinarySensor(RoomOSEntity, BinarySensorEntity):
         status = (self.coordinator.data or {}).get("Status", {})
         mode = status.get("Conference", {}).get("Presentation", {}).get("Mode")
         return mode not in (None, "Off")
+
+
+class OccupancyBinarySensor(RoomOSEntity, BinarySensorEntity):
+    """On while RoomAnalytics detects someone in the room.
+
+    Requires RoomAnalytics people presence detection to be enabled on the
+    device (Configuration.RoomAnalytics.PeoplePresenceDetector); unavailable
+    on devices without that feature.
+    """
+
+    _attr_device_class = BinarySensorDeviceClass.OCCUPANCY
+
+    def __init__(self, coordinator: RoomOSCoordinator) -> None:
+        super().__init__(coordinator, "occupancy")
+
+    @property
+    def is_on(self) -> bool | None:
+        status = (self.coordinator.data or {}).get("Status", {})
+        presence = status.get("RoomAnalytics", {}).get("PeoplePresence")
+        if presence is None:
+            return None
+        return presence == "Yes"

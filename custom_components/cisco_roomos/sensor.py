@@ -8,16 +8,21 @@ therefore don't map to a single button - see services.yaml.
 from __future__ import annotations
 
 import logging
+from datetime import timedelta
 from typing import Any
 
 import voluptuous as vol
-from homeassistant.components.sensor import SensorEntity
+from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorStateClass
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import UnitOfTime
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import entity_platform
+from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.event import async_track_time_interval
 
+from .api import RoomOSError, booking_sort_key, booking_summary
 from .const import (
     ATTR_CALL_ID,
     ATTR_CONNECTOR_ID,
@@ -39,13 +44,27 @@ from .entity import RoomOSEntity
 
 _LOGGER = logging.getLogger(__name__)
 
+BOOKINGS_REFRESH_INTERVAL = timedelta(minutes=5)
+
 
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
     """Set up Cisco RoomOS sensor entities and their entity services."""
     coordinator: RoomOSCoordinator = hass.data[DOMAIN][entry.entry_id]
-    async_add_entities([CallStatusSensor(coordinator), StandbyStateSensor(coordinator)])
+    async_add_entities(
+        [
+            CallStatusSensor(coordinator),
+            StandbyStateSensor(coordinator),
+            PeopleCountSensor(coordinator),
+            AmbientNoiseSensor(coordinator),
+            NextMeetingSensor(coordinator),
+            UptimeSensor(coordinator),
+            IpAddressSensor(coordinator),
+            SoftwareVersionSensor(coordinator),
+            ActiveAlertsSensor(coordinator),
+        ]
+    )
 
     platform = entity_platform.async_get_current_platform()
     platform.async_register_entity_service(
@@ -165,3 +184,186 @@ class StandbyStateSensor(RoomOSEntity, SensorEntity):
     def native_value(self) -> str | None:
         status = (self.coordinator.data or {}).get("Status", {})
         return status.get("Standby", {}).get("State")
+
+
+class PeopleCountSensor(RoomOSEntity, SensorEntity):
+    """Number of people detected in the room by RoomAnalytics (requires that feature enabled)."""
+
+    _attr_icon = "mdi:account-group"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(self, coordinator: RoomOSCoordinator) -> None:
+        super().__init__(coordinator, "people_count")
+
+    @property
+    def native_value(self) -> int | None:
+        status = (self.coordinator.data or {}).get("Status", {})
+        value = status.get("RoomAnalytics", {}).get("PeopleCount", {}).get("Current")
+        try:
+            value = int(value)
+        except (TypeError, ValueError):
+            return None
+        # -1 means the feature is disabled or not supported on this device.
+        return value if value >= 0 else None
+
+
+class AmbientNoiseSensor(RoomOSEntity, SensorEntity):
+    """Estimated stationary background noise level in the room."""
+
+    _attr_icon = "mdi:waveform"
+    _attr_native_unit_of_measurement = "dBA"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(self, coordinator: RoomOSCoordinator) -> None:
+        super().__init__(coordinator, "ambient_noise")
+
+    @property
+    def native_value(self) -> int | None:
+        status = (self.coordinator.data or {}).get("Status", {})
+        value = status.get("RoomAnalytics", {}).get("AmbientNoise", {}).get("Level", {}).get("A")
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return None
+
+
+class NextMeetingSensor(RoomOSEntity, SensorEntity):
+    """The next calendar-booked meeting, polled periodically (bookings have no feedback events).
+
+    Requires the device to be paired with a calendar service (Webex, Hybrid
+    Calendar for Exchange/Google, ...); otherwise this always reads "No
+    upcoming meetings".
+    """
+
+    _attr_icon = "mdi:calendar-clock"
+
+    def __init__(self, coordinator: RoomOSCoordinator) -> None:
+        super().__init__(coordinator, "next_meeting")
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        self.async_on_remove(
+            async_track_time_interval(
+                self.hass, self._async_refresh_bookings, BOOKINGS_REFRESH_INTERVAL
+            )
+        )
+        await self._async_refresh_bookings()
+
+    async def _async_refresh_bookings(self, _now: Any = None) -> None:
+        try:
+            bookings = await self.coordinator.client.async_list_bookings(days=1, limit=10)
+        except RoomOSError:
+            _LOGGER.debug("Could not refresh Cisco RoomOS bookings", exc_info=True)
+            return
+        bookings.sort(key=booking_sort_key)
+        self.coordinator.next_booking = booking_summary(bookings[0]) if bookings else None
+        self.async_write_ha_state()
+
+    @property
+    def native_value(self) -> str:
+        booking = self.coordinator.next_booking
+        return booking["title"] if booking else "No upcoming meetings"
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        booking = self.coordinator.next_booking
+        if not booking:
+            return {}
+        return {
+            "booking_id": booking["id"],
+            "start_time": booking["start_time"],
+            "end_time": booking["end_time"],
+            "organizer": booking["organizer"],
+        }
+
+
+class UptimeSensor(RoomOSEntity, SensorEntity):
+    """Seconds since the device last restarted."""
+
+    _attr_icon = "mdi:clock-outline"
+    _attr_device_class = SensorDeviceClass.DURATION
+    _attr_native_unit_of_measurement = UnitOfTime.SECONDS
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(self, coordinator: RoomOSCoordinator) -> None:
+        super().__init__(coordinator, "uptime")
+
+    @property
+    def native_value(self) -> int | None:
+        status = (self.coordinator.data or {}).get("Status", {})
+        value = status.get("SystemUnit", {}).get("Uptime")
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return None
+
+
+class IpAddressSensor(RoomOSEntity, SensorEntity):
+    """The device's primary IPv4 address."""
+
+    _attr_icon = "mdi:ip-network"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(self, coordinator: RoomOSCoordinator) -> None:
+        super().__init__(coordinator, "ip_address")
+
+    @property
+    def native_value(self) -> str | None:
+        status = (self.coordinator.data or {}).get("Status", {})
+        interfaces = status.get("Network", [])
+        if not isinstance(interfaces, list) or not interfaces:
+            return None
+        first = interfaces[0]
+        return first.get("IPv4", {}).get("Address") if isinstance(first, dict) else None
+
+
+class SoftwareVersionSensor(RoomOSEntity, SensorEntity):
+    """The currently installed RoomOS software version."""
+
+    _attr_icon = "mdi:chip"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(self, coordinator: RoomOSCoordinator) -> None:
+        super().__init__(coordinator, "software_version")
+
+    @property
+    def native_value(self) -> str | None:
+        status = (self.coordinator.data or {}).get("Status", {})
+        return status.get("SystemUnit", {}).get("Software", {}).get("Version")
+
+
+class ActiveAlertsSensor(RoomOSEntity, SensorEntity):
+    """Number of active diagnostics messages (errors/warnings) reported by the device."""
+
+    _attr_icon = "mdi:alert-circle-outline"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(self, coordinator: RoomOSCoordinator) -> None:
+        super().__init__(coordinator, "active_alerts")
+
+    @property
+    def _messages(self) -> list[dict[str, Any]]:
+        status = (self.coordinator.data or {}).get("Status", {})
+        messages = status.get("Diagnostics", {}).get("Message", [])
+        if not isinstance(messages, list):
+            return []
+        return [message for message in messages if isinstance(message, dict)]
+
+    @property
+    def native_value(self) -> int:
+        return len(self._messages)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        return {
+            "messages": [
+                {
+                    "level": message.get("Level"),
+                    "type": message.get("Type"),
+                    "description": message.get("Description"),
+                }
+                for message in self._messages[:10]
+            ]
+        }

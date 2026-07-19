@@ -28,6 +28,9 @@ class RoomOSCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # Last presentation source picked via the select entity, used by the
         # "share locally" / "share to call" buttons.
         self.selected_presentation_source: int = 1
+        # Summary dict from api.booking_summary(), refreshed by the "next
+        # meeting" sensor's poll; read by the "join next meeting" button.
+        self.next_booking: dict[str, Any] | None = None
 
     def handle_client_update(self, status: dict[str, Any]) -> None:
         """Called from RoomOSClient whenever a feedback event changes the status tree."""
@@ -36,6 +39,12 @@ class RoomOSCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     def handle_availability_change(self, available: bool) -> None:
         """Called from RoomOSClient when the websocket connects or drops."""
         self.async_update_listeners()
+
+    def handle_client_event(self, event: dict[str, Any]) -> None:
+        """Called from RoomOSClient for each xEvent notification (e.g. UI extension presses)."""
+        self.hass.bus.async_fire(
+            "cisco_roomos_event", {"device_id": self.unique_id, "event": event}
+        )
 
     @property
     def device_info(self) -> DeviceInfo:
