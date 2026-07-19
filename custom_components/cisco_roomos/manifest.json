@@ -1,0 +1,12 @@
+{
+  "domain": "cisco_roomos",
+  "name": "Cisco RoomOS",
+  "codeowners": ["@Spencer8742"],
+  "config_flow": true,
+  "documentation": "https://github.com/Spencer8742/HomeAssistantCiscoRoomOS",
+  "issue_tracker": "https://github.com/Spencer8742/HomeAssistantCiscoRoomOS/issues",
+  "iot_class": "local_push",
+  "integration_type": "device",
+  "requirements": ["websockets>=12.0"],
+  "version": "0.1.0"
+}
