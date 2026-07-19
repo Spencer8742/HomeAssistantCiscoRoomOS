@@ -260,8 +260,9 @@ class NextMeetingSensor(RoomOSEntity, SensorEntity):
     def extra_state_attributes(self) -> dict[str, Any]:
         bookings = self.coordinator.bookings
         booking = self.coordinator.next_booking
-        # `meetings` lists every booking for the day so a card can show them all;
-        # the top-level keys mirror the next meeting for simple templates.
+        # `meetings` lists every booking the device knows about (joinable or not)
+        # so a card can show them all; the top-level keys mirror the next meeting
+        # for simple templates.
         attrs: dict[str, Any] = {
             "meeting_count": len(bookings),
             "meetings": [
@@ -270,6 +271,7 @@ class NextMeetingSensor(RoomOSEntity, SensorEntity):
                     "start_time": item["start_time"],
                     "end_time": item["end_time"],
                     "organizer": item["organizer"],
+                    "joinable": item["joinable"],
                 }
                 for item in bookings
             ],

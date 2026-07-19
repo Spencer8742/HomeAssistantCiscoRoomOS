@@ -16,9 +16,11 @@ from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
-# How far ahead Bookings List looks; 1 = the rest of today.
-BOOKINGS_DAYS = 1
-BOOKINGS_LIMIT = 25
+# Upper bound on the Bookings List window. The device only returns the bookings
+# its calendar sync has populated, so a wide window pulls everything it can find
+# (joinable or not) rather than only today's.
+BOOKINGS_DAYS = 100
+BOOKINGS_LIMIT = 100
 
 
 class RoomOSCoordinator(DataUpdateCoordinator[dict[str, Any]]):
@@ -33,16 +35,23 @@ class RoomOSCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # Last presentation source picked via the select entity, used by the
         # "share locally" / "share to call" buttons.
         self.selected_presentation_source: int = 1
-        # All of the day's bookings (summary dicts from api.booking_summary(),
-        # earliest first) and the next one. Refreshed on a timer by the "next
-        # meeting" sensor and on demand by the "refresh meetings" button, since
-        # bookings have no websocket feedback events. next_booking is read by
-        # the "join next meeting" button.
+        # Every booking the device currently knows about (summary dicts from
+        # api.booking_summary(), earliest first) and the next one, joinable or
+        # not. Refreshed on a timer by the "next meeting" sensor and on demand by
+        # the "refresh meetings" button, since bookings have no websocket feedback
+        # events. next_booking is the earliest; the "join next meeting" button
+        # uses next_joinable_booking so a non-dialable earliest entry (e.g. a
+        # plain calendar block) doesn't block joining a later video meeting.
         self.bookings: list[dict[str, Any]] = []
         self.next_booking: dict[str, Any] | None = None
 
+    @property
+    def next_joinable_booking(self) -> dict[str, Any] | None:
+        """The earliest booking that actually carries a dialable number."""
+        return next((booking for booking in self.bookings if booking.get("number")), None)
+
     async def async_refresh_bookings(self) -> None:
-        """Fetch the day's bookings from the device and update listeners.
+        """Fetch every booking the device knows about and update listeners.
 
         Shared by the periodic poll and the manual refresh button. Failures are
         logged and left as-is (keeps the last known list) rather than raised.
