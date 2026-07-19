@@ -87,6 +87,9 @@ def test_booking_summary_extracts_fields() -> None:
         "Title": "Weekly sync",
         "Time": {"StartTime": "2026-07-19T09:00:00Z", "EndTime": "2026-07-19T09:30:00Z"},
         "Organizer": {"FirstName": "Ada", "LastName": "Lovelace"},
+        "DialInfo": {
+            "Calls": {"Call": [{"Number": "12345@example.com", "Protocol": "Spark"}]}
+        },
     }
     summary = booking_summary(booking)
     assert summary == {
@@ -95,6 +98,8 @@ def test_booking_summary_extracts_fields() -> None:
         "start_time": "2026-07-19T09:00:00Z",
         "end_time": "2026-07-19T09:30:00Z",
         "organizer": "Ada Lovelace",
+        "number": "12345@example.com",
+        "protocol": "Spark",
     }
 
 
@@ -103,6 +108,14 @@ def test_booking_summary_falls_back_to_email_and_defaults() -> None:
     assert summary["title"] == "Meeting"
     assert summary["organizer"] == "ada@example.com"
     assert summary["start_time"] is None
+    assert summary["number"] is None
+    assert summary["protocol"] is None
+
+
+def test_booking_summary_missing_dial_info_yields_no_number() -> None:
+    summary = booking_summary({"Id": "abc123", "DialInfo": {"Calls": {"Call": []}}})
+    assert summary["number"] is None
+    assert summary["protocol"] is None
 
 
 def test_resolve_device_name_prefers_custom_name() -> None:
