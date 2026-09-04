@@ -50,6 +50,7 @@
     },
     "switch": {
       "microphone_mute": { "name": "Microphone mute" },
+      "camera_mute": { "name": "Camera mute" },
       "do_not_disturb": { "name": "Do not disturb" },
       "speaker_mute": { "name": "Speaker mute" },
       "selfview": { "name": "Selfview" }

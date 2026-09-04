@@ -1,4 +1,4 @@
-"""Switch entity for Cisco RoomOS: microphone mute."""
+"""Switch entities for Cisco RoomOS: the device's mutes and modes."""
 
 from __future__ import annotations
 
@@ -31,6 +31,7 @@ async def async_setup_entry(
             DoNotDisturbSwitch(coordinator),
             SpeakerMuteSwitch(coordinator),
             SelfviewSwitch(coordinator),
+            CameraMuteSwitch(coordinator),
         ]
     )
 
@@ -56,6 +57,36 @@ class MicrophoneMuteSwitch(RoomOSEntity, SwitchEntity):
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         await self.coordinator.client.async_command(["Audio", "Microphones", "Unmute"])
+
+
+class CameraMuteSwitch(RoomOSEntity, SwitchEntity):
+    """Mutes/unmutes the OUTGOING camera.
+
+    Not to be confused with SelfviewSwitch below, which controls the local
+    preview picture — what you see, not what the far end sees. Turning selfview
+    off leaves the camera running and the room on screen at the other end,
+    which is the opposite of what somebody reaching for a camera control
+    usually wants.
+    """
+
+    _attr_icon = "mdi:video-off"
+
+    def __init__(self, coordinator: RoomOSCoordinator) -> None:
+        super().__init__(coordinator, "camera_mute")
+
+    @property
+    def is_on(self) -> bool | None:
+        status = (self.coordinator.data or {}).get("Status", {})
+        value = status.get("Video", {}).get("Input", {}).get("MainVideoMute")
+        if value is None:
+            return None
+        return value == "On"
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        await self.coordinator.client.async_command(["Video", "Input", "MainVideo", "Mute"])
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        await self.coordinator.client.async_command(["Video", "Input", "MainVideo", "Unmute"])
 
 
 class DoNotDisturbSwitch(RoomOSEntity, SwitchEntity):
