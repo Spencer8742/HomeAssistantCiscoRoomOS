@@ -285,3 +285,46 @@ def test_next_joinable_booking_takes_the_earliest_of_several() -> None:
         _booking("later", ends=NOW + timedelta(hours=2), number="222"),
     ]
     assert next_joinable_booking(bookings, NOW)["number"] == "111"
+
+
+# ── Guarding against a merge silently undoing a fix ──────────────────────────
+#
+# A merge of main into this fix's branch resolved a conflict by keeping BOTH
+# versions of `next_joinable_booking` — the time-filtered one and the original.
+# Python keeps the last definition, so the class looked correct on the way past
+# and behaved exactly as it had before the fix. Nothing failed; the property
+# just quietly went back to dialling meetings that had ended.
+#
+# coordinator.py imports homeassistant, which this suite deliberately does not,
+# so the check is on the source rather than the imported class.
+
+
+def _class_defs(path: Path, class_name: str) -> list[str]:
+    """Every method name defined directly on a class, duplicates included."""
+    import ast
+
+    tree = ast.parse(path.read_text())
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ClassDef) and node.name == class_name:
+            return [
+                child.name
+                for child in node.body
+                if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef))
+            ]
+    raise AssertionError(f"{class_name} not found in {path}")
+
+
+def test_coordinator_defines_each_method_exactly_once() -> None:
+    path = (
+        Path(__file__).resolve().parents[1]
+        / "custom_components"
+        / "cisco_roomos"
+        / "coordinator.py"
+    )
+    names = _class_defs(path, "RoomOSCoordinator")
+    duplicates = sorted({name for name in names if names.count(name) > 1})
+    assert not duplicates, (
+        f"RoomOSCoordinator defines {duplicates} more than once. "
+        "Python keeps the last one, so the earlier definition is dead code and "
+        "the behaviour is whichever copy happens to be last in the file."
+    )
