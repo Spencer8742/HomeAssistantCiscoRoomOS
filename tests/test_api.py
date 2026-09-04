@@ -9,6 +9,7 @@ package's __init__.py pulls in.
 from __future__ import annotations
 
 import importlib.util
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 _API_PATH = Path(__file__).resolve().parents[1] / "custom_components" / "cisco_roomos" / "api.py"
@@ -20,6 +21,9 @@ _spec.loader.exec_module(_api)
 merge_status = _api.merge_status
 booking_sort_key = _api.booking_sort_key
 booking_summary = _api.booking_summary
+booking_has_ended = _api.booking_has_ended
+next_booking = _api.next_booking
+next_joinable_booking = _api.next_joinable_booking
 resolve_device_name = _api.resolve_device_name
 
 
@@ -191,3 +195,93 @@ def test_resolve_device_name_falls_back_to_host_when_nothing_else_set() -> None:
 
 def test_resolve_device_name_strips_whitespace() -> None:
     assert resolve_device_name("  My Desk Pro  ", None, "192.168.1.50") == "My Desk Pro"
+
+
+# ── Picking the next booking ─────────────────────────────────────────────────
+#
+# `Bookings List` returns a WINDOW, not only what is ahead, and the device does
+# not prune what has passed. Before these functions existed, "next" meant
+# `bookings[0]` and "next joinable" meant the first entry carrying a number —
+# so by mid-morning both pointed at a meeting that had finished, the sensor
+# reported it as upcoming, and the join button dialled into it.
+
+NOW = datetime(2026, 9, 4, 12, 0, tzinfo=timezone.utc)
+
+
+def _booking(title: str, *, ends: datetime | None, number: str | None = None) -> dict:
+    """A summary dict shaped like booking_summary() returns."""
+    return {
+        "title": title,
+        "end_time": ends.isoformat().replace("+00:00", "Z") if ends else None,
+        "number": number,
+    }
+
+
+def test_booking_has_ended_compares_against_the_given_time() -> None:
+    assert booking_has_ended(_booking("done", ends=NOW - timedelta(minutes=1)), NOW)
+    assert not booking_has_ended(_booking("later", ends=NOW + timedelta(minutes=1)), NOW)
+
+
+def test_booking_ending_exactly_now_has_ended() -> None:
+    # The boundary is inclusive: a meeting whose end time is this instant is
+    # over, not still running.
+    assert booking_has_ended(_booking("edge", ends=NOW), NOW)
+
+
+def test_booking_with_no_end_time_is_never_treated_as_ended() -> None:
+    # Organizer and time fields are best-effort — they depend on which calendar
+    # service the device is paired with. Something we cannot place in time must
+    # stay visible rather than silently vanish.
+    assert not booking_has_ended({"title": "no times"}, NOW)
+    assert not booking_has_ended({"title": "empty", "end_time": ""}, NOW)
+
+
+def test_booking_with_unparseable_end_time_is_never_treated_as_ended() -> None:
+    assert not booking_has_ended({"title": "junk", "end_time": "not a date"}, NOW)
+
+
+def test_naive_end_time_is_read_as_utc() -> None:
+    # The device sends UTC; a timestamp without an offset must not be compared
+    # as though it were local, which would shift it by hours.
+    assert booking_has_ended({"end_time": "2026-09-04T11:00:00"}, NOW)
+    assert not booking_has_ended({"end_time": "2026-09-04T13:00:00"}, NOW)
+
+
+def test_next_booking_skips_what_has_already_finished() -> None:
+    bookings = [
+        _booking("this morning", ends=NOW - timedelta(hours=2)),
+        _booking("right now", ends=NOW + timedelta(minutes=30)),
+        _booking("this afternoon", ends=NOW + timedelta(hours=3)),
+    ]
+    assert next_booking(bookings, NOW)["title"] == "right now"
+
+
+def test_next_booking_is_none_when_everything_has_finished() -> None:
+    bookings = [_booking("over", ends=NOW - timedelta(hours=1))]
+    assert next_booking(bookings, NOW) is None
+
+
+def test_next_joinable_booking_needs_both_a_number_and_a_future() -> None:
+    bookings = [
+        # Finished, but dialable — the exact entry the join button used to hit.
+        _booking("this morning", ends=NOW - timedelta(hours=2), number="123"),
+        # Ahead of us but not a video meeting: still not joinable.
+        _booking("plain calendar block", ends=NOW + timedelta(minutes=30)),
+        _booking("the one to join", ends=NOW + timedelta(hours=1), number="456"),
+    ]
+    assert next_joinable_booking(bookings, NOW)["title"] == "the one to join"
+
+
+def test_next_joinable_booking_ignores_a_finished_meeting_entirely() -> None:
+    # Nothing left to join is a real answer. Returning the finished meeting
+    # instead is what made the button dial into a call nobody was in.
+    bookings = [_booking("this morning", ends=NOW - timedelta(hours=2), number="123")]
+    assert next_joinable_booking(bookings, NOW) is None
+
+
+def test_next_joinable_booking_takes_the_earliest_of_several() -> None:
+    bookings = [
+        _booking("soon", ends=NOW + timedelta(minutes=30), number="111"),
+        _booking("later", ends=NOW + timedelta(hours=2), number="222"),
+    ]
+    assert next_joinable_booking(bookings, NOW)["number"] == "111"

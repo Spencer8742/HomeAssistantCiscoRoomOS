@@ -20,6 +20,7 @@ import json
 import logging
 import ssl
 from collections.abc import Callable
+from datetime import datetime, timezone
 from typing import Any
 
 import websockets
@@ -156,6 +157,71 @@ def booking_summary(booking: dict[str, Any]) -> dict[str, Any]:
         # calendar blocks with no video meeting are still listed, just not joinable.
         "joinable": number is not None,
     }
+
+
+def _parse_time(value: str | None) -> datetime | None:
+    """Parse an xAPI timestamp, or None if it is missing or unintelligible.
+
+    RoomOS sends UTC ISO-8601 with a `Z` suffix, which fromisoformat only
+    learned to read in Python 3.11 - swapped for +00:00 so this does not turn
+    into a version-dependent bug. A naive timestamp is assumed to be UTC,
+    since that is what the device sends.
+    """
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+
+
+def booking_has_ended(booking: dict[str, Any], now: datetime) -> bool:
+    """Has this booking's end time passed?
+
+    False when there is no usable end time. A booking we cannot place in time
+    is treated as still current: dropping something we cannot reason about
+    would hide a meeting somebody may be about to join, which is the worse
+    failure of the two.
+    """
+    end = _parse_time(booking.get("end_time"))
+    return end is not None and end <= now
+
+
+def next_booking(
+    bookings: list[dict[str, Any]], now: datetime
+) -> dict[str, Any] | None:
+    """The earliest booking that has not already finished, dialable or not.
+
+    Same window problem as below: `bookings[0]` is the earliest entry the
+    device returned, which stays pointed at this morning's meeting for the
+    rest of the day and makes the "next meeting" sensor report something that
+    is over.
+    """
+    return next(
+        (booking for booking in bookings if not booking_has_ended(booking, now)),
+        None,
+    )
+
+
+def next_joinable_booking(
+    bookings: list[dict[str, Any]], now: datetime
+) -> dict[str, Any] | None:
+    """The earliest booking that is still current AND carries a dialable number.
+
+    Both halves matter. `number` alone was the original rule, and it is not
+    enough: `Bookings List` covers a window rather than only what is ahead, so
+    by mid-morning the earliest entry carrying a number is routinely a meeting
+    that finished hours ago - and the join button dialled straight into it.
+    """
+    return next(
+        (
+            booking
+            for booking in bookings
+            if booking.get("number") and not booking_has_ended(booking, now)
+        ),
+        None,
+    )
 
 
 def resolve_device_name(custom_name: str | None, reported_name: str | None, fallback: str) -> str:

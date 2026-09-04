@@ -11,7 +11,17 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
-from .api import RoomOSClient, RoomOSError, booking_sort_key, booking_summary, resolve_device_name
+from homeassistant.util import dt as dt_util
+
+from .api import (
+    RoomOSClient,
+    RoomOSError,
+    booking_sort_key,
+    booking_summary,
+    next_booking,
+    next_joinable_booking,
+    resolve_device_name,
+)
 from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
@@ -39,16 +49,30 @@ class RoomOSCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # api.booking_summary(), earliest first) and the next one, joinable or
         # not. Refreshed on a timer by the "next meeting" sensor and on demand by
         # the "refresh meetings" button, since bookings have no websocket feedback
-        # events. next_booking is the earliest; the "join next meeting" button
-        # uses next_joinable_booking so a non-dialable earliest entry (e.g. a
-        # plain calendar block) doesn't block joining a later video meeting.
+        # events. next_booking is the earliest one still ahead of us; the "join
+        # next meeting" button uses next_joinable_booking so a non-dialable
+        # earliest entry (e.g. a plain calendar block) doesn't block joining a
+        # later video meeting.
+        #
+        # Both are properties rather than fields refreshed alongside the list:
+        # "next" is a question about the clock, and the list is only re-fetched
+        # every few minutes.
         self.bookings: list[dict[str, Any]] = []
-        self.next_booking: dict[str, Any] | None = None
+
+    @property
+    def next_booking(self) -> dict[str, Any] | None:
+        """The earliest booking that has not already finished."""
+        return next_booking(self.bookings, dt_util.utcnow())
 
     @property
     def next_joinable_booking(self) -> dict[str, Any] | None:
-        """The earliest booking that actually carries a dialable number."""
-        return next((booking for booking in self.bookings if booking.get("number")), None)
+        """The earliest booking still ahead of us that carries a dialable number.
+
+        Evaluated fresh on every read rather than cached alongside `bookings`:
+        the list is only refreshed every few minutes, and whether a booking has
+        ended depends on the clock, not on when the device was last asked.
+        """
+        return next_joinable_booking(self.bookings, dt_util.utcnow())
 
     async def async_refresh_bookings(self) -> None:
         """Fetch every booking the device knows about and update listeners.
@@ -63,7 +87,6 @@ class RoomOSCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             return
         raw.sort(key=booking_sort_key)
         self.bookings = [booking_summary(booking) for booking in raw]
-        self.next_booking = self.bookings[0] if self.bookings else None
         self.async_update_listeners()
 
     def handle_client_update(self, status: dict[str, Any]) -> None:
