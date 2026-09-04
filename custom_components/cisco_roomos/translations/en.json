@@ -37,103 +37,45 @@
   },
   "entity": {
     "button": {
-      "wake_up": {
-        "name": "Wake up"
-      },
-      "standby": {
-        "name": "Standby"
-      },
-      "answer_call": {
-        "name": "Answer call"
-      },
-      "reject_call": {
-        "name": "Reject call"
-      },
-      "hang_up": {
-        "name": "Hang up"
-      },
-      "share_local": {
-        "name": "Share locally"
-      },
-      "share_to_call": {
-        "name": "Share to call"
-      },
-      "stop_sharing": {
-        "name": "Stop sharing"
-      },
-      "join_next_meeting": {
-        "name": "Join next meeting"
-      },
-      "refresh_meetings": {
-        "name": "Refresh meetings"
-      }
+      "wake_up": { "name": "Wake up" },
+      "standby": { "name": "Standby" },
+      "answer_call": { "name": "Answer call" },
+      "reject_call": { "name": "Reject call" },
+      "hang_up": { "name": "Hang up" },
+      "share_local": { "name": "Share locally" },
+      "share_to_call": { "name": "Share to call" },
+      "stop_sharing": { "name": "Stop sharing" },
+      "join_next_meeting": { "name": "Join next meeting" },
+      "refresh_meetings": { "name": "Refresh meetings" }
     },
     "switch": {
-      "microphone_mute": {
-        "name": "Microphone mute"
-      },
-      "camera_mute": {
-        "name": "Camera mute"
-      },
-      "do_not_disturb": {
-        "name": "Do not disturb"
-      },
-      "speaker_mute": {
-        "name": "Speaker mute"
-      },
-      "selfview": {
-        "name": "Selfview"
-      }
+      "microphone_mute": { "name": "Microphone mute" },
+      "camera_mute": { "name": "Camera mute" },
+      "do_not_disturb": { "name": "Do not disturb" },
+      "speaker_mute": { "name": "Speaker mute" },
+      "selfview": { "name": "Selfview" }
     },
     "number": {
-      "volume": {
-        "name": "Volume"
-      }
+      "volume": { "name": "Volume" }
     },
     "select": {
-      "presentation_source": {
-        "name": "Share source"
-      }
+      "presentation_source": { "name": "Share source" }
     },
     "sensor": {
-      "call_status": {
-        "name": "Call status"
-      },
-      "standby_state": {
-        "name": "Standby state"
-      },
-      "people_count": {
-        "name": "People count"
-      },
-      "ambient_noise": {
-        "name": "Ambient noise"
-      },
-      "next_meeting": {
-        "name": "Next meeting"
-      },
-      "uptime": {
-        "name": "Uptime"
-      },
-      "ip_address": {
-        "name": "IP address"
-      },
-      "software_version": {
-        "name": "Software version"
-      },
-      "active_alerts": {
-        "name": "Active alerts"
-      }
+      "call_status": { "name": "Call status" },
+      "standby_state": { "name": "Standby state" },
+      "people_count": { "name": "People count" },
+      "ambient_noise": { "name": "Ambient noise" },
+      "next_meeting": { "name": "Next meeting" },
+      "uptime": { "name": "Uptime" },
+      "ip_address": { "name": "IP address" },
+      "software_version": { "name": "Software version" },
+      "active_alerts": { "name": "Active alerts" }
     },
     "binary_sensor": {
-      "in_call": {
-        "name": "In call"
-      },
-      "sharing_content": {
-        "name": "Sharing content"
-      },
-      "occupancy": {
-        "name": "Occupancy"
-      }
+      "in_call": { "name": "In call" },
+      "sharing_content": { "name": "Sharing content" },
+      "occupancy": { "name": "Occupancy" }
     }
   },
   "services": {
@@ -141,78 +83,51 @@
       "name": "Dial",
       "description": "Place an outgoing call to a number, SIP URI, or Webex address.",
       "fields": {
-        "number": {
-          "name": "Number",
-          "description": "The number, SIP URI, or address to dial."
-        },
-        "protocol": {
-          "name": "Protocol",
-          "description": "Optional call protocol to use."
-        }
+        "number": { "name": "Number", "description": "The number, SIP URI, or address to dial." },
+        "protocol": { "name": "Protocol", "description": "Optional call protocol to use." }
       }
     },
     "hang_up": {
       "name": "Hang up",
       "description": "Disconnect an active call. If no call is specified, all active calls are disconnected.",
       "fields": {
-        "call_id": {
-          "name": "Call ID",
-          "description": "The specific call to disconnect."
-        }
+        "call_id": { "name": "Call ID", "description": "The specific call to disconnect." }
       }
     },
     "answer": {
       "name": "Answer call",
       "description": "Accept an incoming call.",
       "fields": {
-        "call_id": {
-          "name": "Call ID",
-          "description": "The specific incoming call to accept."
-        }
+        "call_id": { "name": "Call ID", "description": "The specific incoming call to accept." }
       }
     },
     "reject": {
       "name": "Reject call",
       "description": "Reject an incoming call.",
       "fields": {
-        "call_id": {
-          "name": "Call ID",
-          "description": "The specific incoming call to reject."
-        }
+        "call_id": { "name": "Call ID", "description": "The specific incoming call to reject." }
       }
     },
     "send_dtmf": {
       "name": "Send DTMF",
       "description": "Send DTMF tones on an active call.",
       "fields": {
-        "digits": {
-          "name": "Digits",
-          "description": "The DTMF digits to send."
-        },
-        "call_id": {
-          "name": "Call ID",
-          "description": "The specific call to send DTMF on."
-        }
+        "digits": { "name": "Digits", "description": "The DTMF digits to send." },
+        "call_id": { "name": "Call ID", "description": "The specific call to send DTMF on." }
       }
     },
     "share_local": {
       "name": "Share locally",
       "description": "Start presentation sharing to the local screen only (not sent to the far end).",
       "fields": {
-        "connector_id": {
-          "name": "Connector ID",
-          "description": "The video input connector ID to share."
-        }
+        "connector_id": { "name": "Connector ID", "description": "The video input connector ID to share." }
       }
     },
     "share_remote": {
       "name": "Share to call",
       "description": "Start presentation sharing to the local screen and to the far end of an active call.",
       "fields": {
-        "connector_id": {
-          "name": "Connector ID",
-          "description": "The video input connector ID to share."
-        }
+        "connector_id": { "name": "Connector ID", "description": "The video input connector ID to share." }
       }
     },
     "share_stop": {
