@@ -74,6 +74,11 @@ class RoomOSCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """
         return next_joinable_booking(self.bookings, dt_util.utcnow())
 
+    @property
+    def next_joinable_booking(self) -> dict[str, Any] | None:
+        """The earliest booking that actually carries a dialable number."""
+        return next((booking for booking in self.bookings if booking.get("number")), None)
+
     async def async_refresh_bookings(self) -> None:
         """Fetch every booking the device knows about and update listeners.
 
