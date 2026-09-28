@@ -20,7 +20,7 @@ import json
 import logging
 import ssl
 from collections.abc import Callable
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import websockets
@@ -204,24 +204,42 @@ def next_booking(
     )
 
 
+# How long before a booking starts the join button moves on to it, even while
+# the previous one is still running. Back-to-back meetings otherwise leave the
+# button dialling the one you are about to leave until the minute it ends.
+JOIN_HANDOVER = timedelta(minutes=3)
+
+
 def next_joinable_booking(
     bookings: list[dict[str, Any]], now: datetime
 ) -> dict[str, Any] | None:
-    """The earliest booking that is still current AND carries a dialable number.
+    """The booking the join button should dial right now.
 
+    Only bookings that are still current AND carry a dialable number count.
     Both halves matter. `number` alone was the original rule, and it is not
     enough: `Bookings List` covers a window rather than only what is ahead, so
     by mid-morning the earliest entry carrying a number is routinely a meeting
     that finished hours ago - and the join button dialled straight into it.
+
+    Of those, the earliest wins - unless a later one starts within
+    JOIN_HANDOVER, in which case the latest such one does: a meeting about to
+    start is the one worth joining, not the one about to end. A booking with no
+    readable start time never takes over.
     """
-    return next(
-        (
-            booking
-            for booking in bookings
-            if booking.get("number") and not booking_has_ended(booking, now)
-        ),
-        None,
-    )
+    current = [
+        booking
+        for booking in bookings
+        if booking.get("number") and not booking_has_ended(booking, now)
+    ]
+    if not current:
+        return None
+    handover = now + JOIN_HANDOVER
+    starting = [
+        booking
+        for booking in current
+        if (start := _parse_time(booking.get("start_time"))) is not None and start <= handover
+    ]
+    return starting[-1] if starting else current[0]
 
 
 def resolve_device_name(custom_name: str | None, reported_name: str | None, fallback: str) -> str:

@@ -208,10 +208,17 @@ def test_resolve_device_name_strips_whitespace() -> None:
 NOW = datetime(2026, 9, 4, 12, 0, tzinfo=timezone.utc)
 
 
-def _booking(title: str, *, ends: datetime | None, number: str | None = None) -> dict:
+def _booking(
+    title: str,
+    *,
+    ends: datetime | None,
+    number: str | None = None,
+    starts: datetime | None = None,
+) -> dict:
     """A summary dict shaped like booking_summary() returns."""
     return {
         "title": title,
+        "start_time": starts.isoformat().replace("+00:00", "Z") if starts else None,
         "end_time": ends.isoformat().replace("+00:00", "Z") if ends else None,
         "number": number,
     }
@@ -285,6 +292,49 @@ def test_next_joinable_booking_takes_the_earliest_of_several() -> None:
         _booking("later", ends=NOW + timedelta(hours=2), number="222"),
     ]
     assert next_joinable_booking(bookings, NOW)["number"] == "111"
+
+
+def _back_to_back(next_starts_in: timedelta) -> list[dict]:
+    """A meeting in progress, and the next one starting `next_starts_in` from NOW."""
+    return [
+        _booking(
+            "running",
+            starts=NOW - timedelta(minutes=25),
+            ends=NOW + next_starts_in,
+            number="111",
+        ),
+        _booking(
+            "next",
+            starts=NOW + next_starts_in,
+            ends=NOW + next_starts_in + timedelta(minutes=30),
+            number="222",
+        ),
+    ]
+
+
+def test_join_stays_on_the_running_meeting_until_three_minutes_before_the_next() -> None:
+    bookings = _back_to_back(timedelta(minutes=3, seconds=1))
+    assert next_joinable_booking(bookings, NOW)["title"] == "running"
+
+
+def test_join_moves_to_the_next_meeting_three_minutes_ahead() -> None:
+    for lead in (timedelta(minutes=3), timedelta(minutes=1), timedelta(0)):
+        bookings = _back_to_back(lead)
+        assert next_joinable_booking(bookings, NOW)["title"] == "next", lead
+
+
+def test_join_handover_needs_a_start_time() -> None:
+    # Without a start time the later booking cannot be placed, so it never
+    # takes the button from the one that is running.
+    bookings = _back_to_back(timedelta(minutes=1))
+    bookings[1]["start_time"] = None
+    assert next_joinable_booking(bookings, NOW)["title"] == "running"
+
+
+def test_join_handover_skips_non_dialable_bookings() -> None:
+    bookings = _back_to_back(timedelta(minutes=1))
+    bookings[1]["number"] = None
+    assert next_joinable_booking(bookings, NOW)["title"] == "running"
 
 
 # ── Guarding against a merge silently undoing a fix ──────────────────────────
